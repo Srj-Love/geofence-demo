@@ -8,9 +8,7 @@ import 'package:geofence_demo/permission_helper.dart';
 import 'package:tracelet/tracelet.dart' as tl;
 import 'firebase_options.dart';
 
-// Must be a top-level function. The background isolate this spawns is separate
-// from the main isolate — keep it minimal (no Tracelet init here) so it does
-// not rebind Tracelet's method channel away from the main isolate.
+
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // Explicit options required — bare initializeApp() can fail in a background isolate.
