@@ -8,104 +8,31 @@ import 'package:geofence_demo/permission_helper.dart';
 import 'package:tracelet/tracelet.dart' as tl;
 import 'firebase_options.dart';
 
-
-// 🔴 IMPORTANT: Background handler
+// Must be a top-level function. The background isolate this spawns is separate
+// from the main isolate — keep it minimal (no Tracelet init here) so it does
+// not rebind Tracelet's method channel away from the main isolate.
 @pragma('vm:entry-point')
-Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
-  log('🔥 FCM BG message: ${message.messageId}');
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Explicit options required — bare initializeApp() can fail in a background isolate.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  log('FCM BG message: ${message.messageId}');
 }
-
 
 Future<void> main() async {
-
   WidgetsFlutterBinding.ensureInitialized();
 
-  // ✅ Initialize Firebase
-  await Firebase.initializeApp();
+  // Explicit options keep both the main and background isolates consistent.
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-
-  // 🔴 Toggle this ON/OFF to reproduce issue
-  // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+  // Must be registered before runApp() so Firebase can bind its background
+  // engine before the main UI engine is fully active.
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   runApp(const MyApp());
-
-
-
-  // 1. Subscribe to location events.
-  tl.Tracelet.onLocation((location) {
-    print(
-      '📍 ${location.coords.latitude}, ${location.coords.longitude} '
-          '· accuracy: ${location.coords.accuracy}m',
-    );
-  });
-
-
-  tl.Tracelet.onGeofence((tl.GeofenceEvent evt) {
-    print(
-      'GEO ${evt.action} — ${evt.identifier} at ${evt.location.coords.latitude}, ${evt.location.coords.longitude}',
-    );
-  });
-
-  // 2. Initialize the plugin with a configuration.
-  final state = await tl.Tracelet.ready(
-    tl.Config(
-      geo: tl.GeoConfig(
-        desiredAccuracy: tl.DesiredAccuracy.high,
-        distanceFilter: 10,
-      ),
-      logger: tl.LoggerConfig(logLevel: tl.LogLevel.verbose),
-    ),
-  );
-
-  print(
-    'Tracelet ready — enabled: ${state.enabled}, '
-        'tracking: ${state.trackingMode}',
-  );
-
-  // 3. Start tracking.
-  await tl.Tracelet.start();
-
-
-  await Future.delayed(const Duration(seconds: 5), addGeofenceAtCurrentLocation);
-
-
-}
-
-Future<void> addGeofenceAtCurrentLocation() async {
-
-
-  final position = await tl.Tracelet.getCurrentPosition();
-
-
-  if (position == null) {
-    log(name: 'WARN', 'No location yet — get a position first');
-    return;
-  }
-
-  log('position -> $position');
-  try {
-    final loc = position;
-    final id = 'geo_${DateTime.now().millisecondsSinceEpoch}';
-    await tl.Tracelet.addGeofence(
-      tl.Geofence(
-        identifier: id,
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        radius: 400,
-        notifyOnEntry: true,
-        notifyOnExit: true,
-        notifyOnDwell: true,
-        loiteringDelay: 30000,
-      ),
-    );
-    log(
-     name:  'GEOFENCE+',
-      '$id  r=200m  at ${loc.coords.latitude.toString()}, ${loc.coords.longitude.toString()}',
-    );
-  } catch (e) {
-    log(name: 'ERROR', 'addGeofence() failed: $e');
-  }
+  // All Tracelet initialisation lives in _HomePageState.initTracelet().
+  // Initialising it here too (after runApp) creates a second concurrent
+  // tl.Tracelet.ready() call that races with the widget's init and can hand
+  // Tracelet's method-channel binding to the wrong isolate.
 }
 
 class MyApp extends StatelessWidget {
@@ -136,7 +63,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> initTracelet() async {
 
-    // 📍 Subscribe first
+    // Subscribe before ready() so no events are missed during startup.
     tl.Tracelet.onLocation((loc) {
       log('📍 LOCATION => ${loc.coords.latitude}, ${loc.coords.longitude}');
     });
@@ -145,11 +72,8 @@ class _HomePageState extends State<HomePage> {
       log('🚧 GEOFENCE => ${evt.identifier} ${evt.action}');
     });
 
-
     await PermissionHelper().handleTrackingLocationsPermission(context);
 
-
-    // ⚙️ Initialize Tracelet
     final state = await tl.Tracelet.ready(
       tl.Config(
         geo: tl.GeoConfig(
@@ -168,13 +92,11 @@ class _HomePageState extends State<HomePage> {
 
     log('Tracelet ready => $state');
 
-    // ▶️ Start tracking
     await tl.Tracelet.start();
     await tl.Tracelet.changePace(true);
 
     log('Tracelet started');
 
-    // ⏳ Add geofence after small delay
     Future.delayed(const Duration(seconds: 5), addGeofence);
   }
 
@@ -207,6 +129,3 @@ class _HomePageState extends State<HomePage> {
     );
   }
 }
-
-
-
