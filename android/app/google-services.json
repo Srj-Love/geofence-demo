@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "612615178691",
+    "project_id": "test-f4073",
+    "storage_bucket": "test-f4073.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:612615178691:android:66cc1ea89bcc290901d576",
+        "android_client_info": {
+          "package_name": "com.example.geofence_demo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCXGlZZXdgnGmE2b_0AxKOOrQytHL7iymM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
