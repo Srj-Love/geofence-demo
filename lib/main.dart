@@ -8,6 +8,14 @@ import 'package:geofence_demo/permission_helper.dart';
 import 'package:tracelet/tracelet.dart' as tl;
 import 'firebase_options.dart';
 
+@pragma('vm:entry-point')
+Future<void> _traceletHeadlessTask(tl.HeadlessEvent event) async {
+  // Do NOT call WidgetsFlutterBinding.ensureInitialized() here.
+  // Firebase is already initialised in the main isolate. Calling it again
+  // in a background isolate causes the "duplicate app" crash.
+  log('[Tracelet BG] event=${event.name}');
+}
+
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -25,6 +33,8 @@ Future<void> main() async {
   // Must be registered before runApp() so Firebase can bind its background
   // engine before the main UI engine is fully active.
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+  tl.Tracelet.registerHeadlessTask(_traceletHeadlessTask);
 
   runApp(const MyApp());
   // All Tracelet initialisation lives in _HomePageState.initTracelet().
@@ -66,7 +76,24 @@ class _HomePageState extends State<HomePage> {
       log('📍 LOCATION => ${loc.coords.latitude}, ${loc.coords.longitude}');
     });
 
-    tl.Tracelet.onGeofence((evt) {
+    tl.Tracelet.onGeofence((tl.GeofenceEvent evt) {
+
+      switch(evt.action){
+        case tl.GeofenceAction.enter:
+          log('🚪 ENTERED geofence ${evt.identifier}');
+
+          var data = evt.extras;
+          log('Extra data - $data');
+
+          break;
+        case tl.GeofenceAction.exit:
+          log('🚪 EXITED geofence ${evt.identifier}');
+          break;
+        case tl.GeofenceAction.dwell:
+          log('🛑 DWELLING in geofence ${evt.identifier}');
+          break;
+      }
+
       log('🚧 GEOFENCE => ${evt.identifier} ${evt.action}');
     });
 
@@ -111,7 +138,10 @@ class _HomePageState extends State<HomePage> {
         radius: 200,
         notifyOnEntry: true,
         notifyOnExit: true,
-      ),
+        extras: {
+          'demo_test': 'Hello from the geofence extras!',
+        }
+      )
     );
 
     log('🚧 Geofence added at current position');

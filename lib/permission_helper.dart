@@ -16,57 +16,61 @@ class PermissionHelper{
   Future handleTrackingLocationsPermission(BuildContext context) async {
 
 
-    var isBgPermission = await tl.Tracelet.hasBackgroundPermission;
-    if (!isBgPermission) {
-      await tl.Tracelet.requestPermission();
-    }
-
-    // ── Permission flow (Dart-side control, no native dialogs) ──
-    final permStatus = await tl.Tracelet.getPermissionStatus();
-    _addLog('PERMISSION', 'current status=$permStatus');
-
-    if (permStatus == 0 || permStatus == 1) {
-      // notDetermined or denied (can ask again) → request foreground
-      final result = await tl.Tracelet.requestPermission();
-      _addLog('PERMISSION', 'after request=$result');
-      if (result == 4) {
-        _showPermissionDeniedDialog(context);
-        return;
+    try {
+      var isBgPermission = await tl.Tracelet.hasBackgroundPermission;
+      if (!isBgPermission) {
+        await tl.Tracelet.requestPermission();
       }
-      if (result == 2) {
-        // Foreground granted → offer background upgrade via Dart dialog
+
+      // ── Permission flow (Dart-side control, no native dialogs) ──
+      final permStatus = await tl.Tracelet.getPermissionStatus();
+      _addLog('PERMISSION', 'current status=$permStatus');
+
+      if (permStatus == 0 || permStatus == 1) {
+        // notDetermined or denied (can ask again) → request foreground
+        final result = await tl.Tracelet.requestPermission();
+        _addLog('PERMISSION', 'after request=$result');
+        if (result == 4) {
+          _showPermissionDeniedDialog(context);
+          return;
+        }
+        if (result == 2) {
+          // Foreground granted → offer background upgrade via Dart dialog
+          final shouldUpgrade = await _showBackgroundRationaleDialog(context);
+          if (shouldUpgrade) {
+            await _upgradeToAlways();
+          }
+        }
+      } else if (permStatus == 2) {
+        // whenInUse → offer background upgrade
         final shouldUpgrade = await _showBackgroundRationaleDialog(context);
         if (shouldUpgrade) {
           await _upgradeToAlways();
         }
+      } else if (permStatus == 4) {
+        _showPermissionDeniedDialog(context);
+        return;
       }
-    } else if (permStatus == 2) {
-      // whenInUse → offer background upgrade
-      final shouldUpgrade = await _showBackgroundRationaleDialog(context);
-      if (shouldUpgrade) {
-        await _upgradeToAlways();
-      }
-    } else if (permStatus == 4) {
-      _showPermissionDeniedDialog(context);
-      return;
-    }
 
 
-    // ── Motion / Activity Recognition permission ──
-    // Request early so the plugin can use full activity detection
-    // (CMMotionActivityManager on iOS, Activity Recognition API on Android)
-    // from the very first start. Without this, motion detection silently
-    // falls back to accelerometer-only mode.
-    if (_isAndroid) {
-      await _ensureNotificationPermission(context);
-    }
-    final hasMotion = await _ensureMotionPermission(context);
-    if (!hasMotion) {
-      _addLog(
-        'WARN',
-        'Motion permission not granted — '
-            'using accelerometer-only motion detection',
-      );
+      // ── Motion / Activity Recognition permission ──
+      // Request early so the plugin can use full activity detection
+      // (CMMotionActivityManager on iOS, Activity Recognition API on Android)
+      // from the very first start. Without this, motion detection silently
+      // falls back to accelerometer-only mode.
+      if (_isAndroid) {
+        await _ensureNotificationPermission(context);
+      }
+      final hasMotion = await _ensureMotionPermission(context);
+      if (!hasMotion) {
+        _addLog(
+          'WARN',
+          'Motion permission not granted — '
+              'using accelerometer-only motion detection',
+        );
+      }
+    } on Exception catch (e) {
+      _addLog('ERROR', 'permission handling failed: $e');
     }
 
 
