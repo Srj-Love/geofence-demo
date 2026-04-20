@@ -105,15 +105,20 @@ class _HomePageState extends State<HomePage> {
           desiredAccuracy: tl.DesiredAccuracy.high,
           distanceFilter: 0.0,
           geofenceModeHighAccuracy: true,
+          enableTimestampMeta: true,
           filter: const tl.LocationFilter(
             rejectMockLocations: false,
+
           ),
+        ),
+        app: tl.AppConfig(
         ),
         logger: tl.LoggerConfig(
           logLevel: tl.LogLevel.verbose,
         ),
       ),
     );
+
 
     log('Tracelet ready => $state');
 
@@ -132,7 +137,7 @@ class _HomePageState extends State<HomePage> {
 
     await tl.Tracelet.addGeofence(
       tl.Geofence(
-        identifier: 'test_zone',
+        identifier: 'test_zone_2',
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         radius: 200,
@@ -140,6 +145,7 @@ class _HomePageState extends State<HomePage> {
         notifyOnExit: true,
         extras: {
           'demo_test': 'Hello from the geofence extras!',
+          'Hello': 'World',
         }
       )
     );
